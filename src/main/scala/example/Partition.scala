@@ -30,6 +30,8 @@ abstract class Partition {
     val inEdges: MutMap[ValueIndex, ArrayBuffer[ValueIndex]] = MutMap[ValueIndex, ArrayBuffer[ValueIndex]]()
 
     def preprocess(): Unit
+
+    def compile(): BSP = ???
 }
 
 abstract class BSPPartition extends Partition {
@@ -45,6 +47,18 @@ abstract class BSPPartition extends Partition {
             outEdges.getOrElseUpdate(idBSP._1, new ArrayBuffer[BSPId]) ++= extRefs
         })
     }
+
+    // def compile(): BSP = { self: BSPPartition => 
+    //     val compute: ComputeMethod = ComputeMethod {
+    //         type State = Seq[self.State]
+    //         type Message = PartitionMessage
+
+    //         def combineMessage(m1: Message, m2: Message): Message = {
+                
+    //         }
+            
+    //     }
+    // }
 }
 
 object Partition {

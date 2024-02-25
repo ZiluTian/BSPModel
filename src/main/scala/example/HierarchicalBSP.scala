@@ -4,7 +4,6 @@ import scala.collection.LinearSeq
 
 trait HierarchicalBSP {
     val partitions: LinearSeq[Partition]
-
     val optimizations: LinearSeq[Optimization]
 
     def cut(): LinearSeq[HierarchicalBSP] = ???
@@ -22,11 +21,7 @@ trait HierarchicalBSP {
         }
     }
 
-    def compile(): BSP = ???
-}
-
-object HierarchicalBSP {
-    def toBSP(x: HierarchicalBSP): BSP = {
-        ???
+    def compile(): LinearSeq[BSP] = {
+        partitions.map(p => p.compile())
     }
 }

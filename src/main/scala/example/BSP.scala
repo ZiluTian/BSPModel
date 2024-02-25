@@ -23,7 +23,12 @@ trait BSP {
 
     // For partial evaluation
     def curry(sid: BSPId): Unit = {
-        ast = Run[State](ast, Some(GetLocalValue(sid)))
+        ast = ast match {
+            case Run(tr, None) => 
+                Run[State](tr, Some(GetLocalValue(sid)))
+            case Run(tr, Some(m: MessageExpr{type K=Message})) => 
+                Run[State](tr, Some(CombineMessages[Message](GetLocalValue(sid), m)))
+        }
     }
 }
 

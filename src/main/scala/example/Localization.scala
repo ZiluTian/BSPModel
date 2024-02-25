@@ -1,7 +1,5 @@
 package BSPModel
 
-import scala.collection.mutable.{Map => MutMap, ArrayBuffer}
-
 // transform sending messages to neighbors in the same partition 
 object Localization extends Optimization {
 

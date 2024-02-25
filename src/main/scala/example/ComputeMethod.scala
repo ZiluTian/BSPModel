@@ -5,6 +5,8 @@ trait ComputeMethod {
     type State
     type Message
 
+    // for expressing state update over aggregated message value
+    // e.g. in gol, w.o combineMessages, State has to be defined as a pair
     def combineMessages(m1: Message, m2: Message): Message
     def updateState(s: State, m: Option[Message]): State
     def stateToMessage(s: State): Message
