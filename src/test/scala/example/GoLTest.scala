@@ -6,7 +6,7 @@ import scala.util.Random
 class GoLSpec extends munit.FunSuite {
 
   class Cell(alive: Boolean, pos: BSPId) extends BSP {
-    var state: Boolean = alive
+    val state: Boolean = alive
     id = pos
 
     val compute = new ComputeMethod {
@@ -75,7 +75,7 @@ class GoLSpec extends munit.FunSuite {
           (i._1, a)
         })
       }
-      val extPred = Map[PartitionId, Seq[BSPId]]()
+      // val extPred = Map[PartitionId, Seq[BSPId]]()
       val extSucc = Map[PartitionId, Seq[BSPId]]()
     }
 
@@ -88,7 +88,7 @@ class GoLSpec extends munit.FunSuite {
 
     // Localization.transform(initPartition)
     val optHBSP = hbsp.optimize()
-
+    
     initPartition.indexedLocalValue.values.foreach(i => {
       println(i.ast)
     })

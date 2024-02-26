@@ -1,13 +1,13 @@
 package BSPModel
 
 trait PartitionMessage {
-    type Value
-    type ValueIndex
+    type M
+    type Idx
 
     // seq of sender values
-    val value: Seq[Value]
+    val value: Seq[M]
     // seq of sender ids
-    val messageEncoding: Seq[ValueIndex]
+    val messageEncoding: Seq[Idx]
     // sender id, seq of receivers
-    val schema: Map[ValueIndex, List[ValueIndex]]
+    val schema: Map[Idx, Seq[Idx]]
 }

@@ -9,8 +9,9 @@ trait BSP {
     type State = compute.State
     type Message = compute.Message
 
-    var state: State
-    var id: BSPId = BSP.getNextId()
+    // initial state
+    val state: State
+    var id: BSPId = getNextId()
     val outEdges: ArrayBuffer[BSPId] = new ArrayBuffer[BSPId]()
 
     // Specialized kernel compiled from the AST
@@ -29,14 +30,5 @@ trait BSP {
             case Run(tr, Some(m: MessageExpr{type K=Message})) => 
                 Run[State](tr, Some(CombineMessages[Message](GetLocalValue(sid), m)))
         }
-    }
-}
-
-object BSP {
-    private var lastId: BSPId = 0
-
-    private def getNextId(): BSPId = this.synchronized {
-        lastId = lastId + 1
-        lastId
     }
 }
