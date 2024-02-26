@@ -11,7 +11,9 @@ trait BSP {
 
     // initial state
     val state: State
+     
     var id: BSPId = getNextId()
+    // mutable, can be changed dynamically via rewriting
     val outEdges: ArrayBuffer[BSPId] = new ArrayBuffer[BSPId]()
 
     // Specialized kernel compiled from the AST
@@ -19,16 +21,17 @@ trait BSP {
         compute.run(state, ms)
     }
 
-    // The AST expression for updating the local state
-    var ast: Expr[State] = Run[State](GetState[State](id), None)
+    // The AST expression for ms, combined with compute.combineMessages
+    var ast: Option[MessageExpr] = None
 
-    // For partial evaluation
-    def curry(sid: BSPId): Unit = {
+    // Expr[State] => State => in-place update
+    def exec(): BSP = ??? 
+
+    // Stage read operation to obtain the value from sid
+    def stageRead(sid: BSPId): Unit = {
         ast = ast match {
-            case Run(tr, None) => 
-                Run[State](tr, Some(GetLocalValue(sid)))
-            case Run(tr, Some(m: MessageExpr{type K=Message})) => 
-                Run[State](tr, Some(CombineMessages[Message](GetLocalValue(sid), m)))
+            case None => Some(GetLocalValue[Message](sid))
+            case Some(a: MessageExpr{type K=Message}) => Some(CombineMessages[Message](GetLocalValue(sid), a))
         }
     }
 }

@@ -77,9 +77,15 @@ class GoLSpec extends munit.FunSuite {
       }
       // val extPred = Map[PartitionId, Seq[BSPId]]()
       val extSucc = Map[PartitionId, Seq[BSPId]]()
-    }
 
-    initPartition.preprocess()
+      val outEdges = indexedLocalValue.map(idBSP => {
+            val extRefs = idBSP._2.outEdges.filter(x => !indexedLocalValue.contains(x))
+            idBSP._2.outEdges --= extRefs
+            (idBSP._1, extRefs.toSeq)
+        }).groupBy(_._1).mapValues(_.flatMap(_._2).toSeq).toMap
+    
+      // println(outEdges)
+    }
 
     val hbsp = new HierarchicalBSP {
       val partitions = List(initPartition)

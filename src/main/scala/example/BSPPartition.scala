@@ -1,35 +1,12 @@
 package BSPModel
 
-// https://stackoverflow.com/questions/10373318/mixing-in-a-trait-dynamically
-// A Partition tracks local BSPs within and edges that connecting with other partitions
-// local BSPs within are unordered
-// A collection of key, value pairs
-abstract class Partition {self: Partition => 
-    val id: PartitionId
-    type Value
-    type ValueIndex
+// todo: express compile here incrementally from that of Partition, by compiling staged expr to overwrite updateState
+abstract class BSPPartition extends Partition {self =>
+    val id: PartitionId = getNextId()
+    type Value = BSP
+    type ValueIndex = BSPId
 
-    // Local BSP cores in the partition
-    // Can be either linear seq or indexed seq
-    val indexedLocalValue: Map[ValueIndex, Value]
-
-    // Keys: adjacent partition id
-    // Values: external predecessors / successors in neighboring partitions
-    // val extPred: Map[PartitionId, Seq[ValueIndex]]
-    val extSucc: Map[PartitionId, Seq[ValueIndex]]
-
-    // Keys: external valueIndex that have an internal predecessors
-    // Values: value indices in the local partition
-    val outEdges: Map[ValueIndex, Seq[ValueIndex]]
-    
-    // Keys: internal valueIndex that have an external successors
-    // Values: value indices in an external partition
-    // Built dynamically after receiving info of outEdges from neighboring partitions
-    // val inEdges: MutMap[ValueIndex, ArrayBuffer[ValueIndex]] = MutMap[ValueIndex, ArrayBuffer[ValueIndex]]()
-
-    // In the simplest partition (without computations or communications within local values),
-    // compute simply appends received messages.
-    def compile(): BSP = {
+    override def compile(): BSP = {
         new BSP {
             val compute = new ComputeMethod {
                 // state: ((indexedLocalValue, outEdges), Option[PartitionMessage])
@@ -49,11 +26,12 @@ abstract class Partition {self: Partition =>
                         val schema = m1.schema ++ m2.schema
                     }
                 }
-
+ 
+                // todo: exec each BSP when updating state
                 def updateState(s: State, m: Option[Message]): State = {
                     (s._2, m) match {
                         case (_, None) =>
-                            s
+                            ((s._1._1.map(j => (j._1, j._2.exec)), s._1._2), None)
                         case (None, _) => 
                             (s._1, m)
                         case (Some(k), Some(l)) =>
@@ -80,4 +58,3 @@ abstract class Partition {self: Partition =>
         }
     }
 }
-
