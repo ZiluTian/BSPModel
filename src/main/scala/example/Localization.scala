@@ -11,9 +11,9 @@ object Localization extends Optimization {
                         case (bspId, bsp) => {
                             // external neighbors have been lifted to partition outEdges during preprocessing
                             // for each local neighbor, transform a value from being sent to read
-                            bsp.outEdges.foreach(i => part.indexedLocalValue(i).stageRead(bspId))
+                            bsp.sendTo.traverse.foreach(i => part.indexedLocalValue(i).stageRead(bspId))
                             // remove any edges in the actor
-                            bsp.outEdges.clear()
+                            // bsp.sendTo.clear()
                         }
                     }
                 })

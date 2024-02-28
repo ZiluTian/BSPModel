@@ -5,9 +5,10 @@ import scala.util.Random
 // Game of life example
 class GoLSpec extends munit.FunSuite {
 
-  class Cell(alive: Boolean, pos: BSPId) extends BSP {
+  class Cell(alive: Boolean, pos: BSPId, neighbors: Seq[BSPId]) extends BSP {
     val state: Boolean = alive
-    id = pos
+    override val id = pos
+    val sendTo = FixedCommunication(neighbors)
 
     val compute = new ComputeMethod {
       type State = Boolean
@@ -70,8 +71,7 @@ class GoLSpec extends munit.FunSuite {
     val initPartition = new BSPPartition {
       val indexedLocalValue: Map[BSPId, BSP] = {
         g.map(i => {
-          val a = new Cell(Random.nextBoolean(), i._1)
-          a.outEdges ++= i._2
+          val a = new Cell(Random.nextBoolean(), i._1, i._2.toSeq)
           (i._1, a)
         })
       }
@@ -79,8 +79,8 @@ class GoLSpec extends munit.FunSuite {
       val extSucc = Map[PartitionId, Seq[BSPId]]()
 
       val outEdges = indexedLocalValue.map(idBSP => {
-            val extRefs = idBSP._2.outEdges.filter(x => !indexedLocalValue.contains(x))
-            idBSP._2.outEdges --= extRefs
+            val extRefs = idBSP._2.sendTo.traverse.filter(x => !indexedLocalValue.contains(x))
+            // idBSP._2.outEdges --= extRefs
             (idBSP._1, extRefs.toSeq)
         }).groupBy(_._1).mapValues(_.flatMap(_._2).toSeq).toMap
     

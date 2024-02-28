@@ -54,7 +54,8 @@ abstract class BSPPartition extends Partition {self =>
 
             val state = ((self.indexedLocalValue, self.outEdges.toSeq), None)
 
-            this.outEdges ++= extSucc.keys.map(k => partitionIdToBSPId(k))
+            // todo, check whether connected nodes have fixed or static communication
+            val sendTo = FixedCommunication(extSucc.keys.map(k => partitionIdToBSPId(k)).toSeq)
         }
     }
 }

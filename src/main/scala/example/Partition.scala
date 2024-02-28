@@ -76,7 +76,8 @@ abstract class Partition {self: Partition =>
 
             val state = ((self.indexedLocalValue, self.outEdges.toSeq), None)
 
-            this.outEdges ++= extSucc.keys.map(k => partitionIdToBSPId(k))
+            // Fixed communication
+            val sendTo = FixedCommunication(extSucc.keys.map(k => partitionIdToBSPId(k)).toSeq)
         }
     }
 }
