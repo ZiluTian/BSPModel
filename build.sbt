@@ -9,6 +9,7 @@ lazy val root = (project in file("."))
   .settings(
     name := "BSPModel",
     libraryDependencies += munit % Test,
+    libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.1",
     libraryDependencies += scalaVersion("org.scala-lang" % "scala-reflect" % _).value
   )
 

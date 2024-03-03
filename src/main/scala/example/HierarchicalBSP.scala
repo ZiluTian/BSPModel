@@ -1,27 +1,28 @@
 package BSPModel
 
-import scala.collection.LinearSeq
+// Hierarchical BSP is a scope whose members are partitions
+// optionally with some optimizations
+trait HierarchicalBSP extends Scope with Partition {self =>
+    type M = Partition
 
-trait HierarchicalBSP {
-    val partitions: LinearSeq[Partition]
-    val optimizations: LinearSeq[Optimization]
+    // trait Optimization {
+    //     def transform(bsps: Partition): Partition
+    // }
 
-    def cut(): LinearSeq[HierarchicalBSP] = ???
+    // val optimizations: List[Optimization]
 
-    def optimize(): HierarchicalBSP = {
-        val updatedPartitions: LinearSeq[Partition] = optimizations.foldLeft(partitions)((parts: LinearSeq[Partition], opt: Optimization) => 
-            parts.map(p => {
-                opt.transform(p)
-            })
-        )
+    // // def cut(): List[HierarchicalBSP] = ???
 
-        new HierarchicalBSP {
-            val partitions = updatedPartitions
-            val optimizations = List()
-        }
-    }
+    // def optimize(): HierarchicalBSP = {
+    //     val updatedPartitions = optimizations.foldLeft(members)((parts: List[Partition], opt: Optimization) => 
+    //         parts.map(p => {
+    //             opt.transform(p)
+    //         })
+    //     )
 
-    def compile(): LinearSeq[BSP] = {
-        partitions.map(p => p.compile())
-    }
+    //     new HierarchicalBSP {
+    //         val members = updatedPartitions
+    //         val optimizations = List()
+    //     }
+    // }
 }
