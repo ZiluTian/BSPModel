@@ -1,5 +1,7 @@
 package BSPModel
 
+import scala.reflect.runtime.universe._
+
 sealed trait Member
 
 trait BSP extends Member {

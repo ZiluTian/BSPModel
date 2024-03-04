@@ -3,10 +3,13 @@ package test
 
 import scala.util.Random
 import sourcecode._
-import Util._
+import BSPModel.Util._
+
+import org.scalatest._
+import funsuite._
 
 // A counter example that adds received messages to the current value
-class CounterSpec extends munit.FunSuite {
+class CounterTest extends AnyFunSuite {
     trait CounterCompute extends ComputeMethod {
         type State = Int
         type Message = Int
@@ -39,8 +42,8 @@ class CounterSpec extends munit.FunSuite {
     } 
 
     test("Counter should increse its value in every round") {
-        val width = 100
-        val height = 100
+        val width = 10
+        val height = 10
         val g = new Torus2DGraph(width, height, 0)
 
         val agents = g.map(i => new Cell(i._1, i._2.toSeq))
@@ -64,14 +67,16 @@ class CounterSpec extends munit.FunSuite {
         val ans2 = Optimizer.pushToPullAndUnbox.transform(ans)
         // ans2.topo.nodes.map(i => println(f"${i._2.sendTo}"))
 
-        benchmarkTool[Unit](
+        Optimizer.vectorizeBSP.transform(ans2)
+
+        // benchmarkTool[Unit](
             Range(1, 10).foreach(_ => {
                 ans2.topo.nodes.map(i => {
                     i._2.run(List()) // 693382, 416672, 180646
-                    // debug(i._2.state)
+                    debug(i._2.state)
                 })
             })
-        )
+        // )
 
 
 

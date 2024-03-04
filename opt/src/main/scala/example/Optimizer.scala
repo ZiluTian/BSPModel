@@ -1,12 +1,15 @@
 package BSPModel
 
 import scala.collection.mutable.{Map => MutMap, ArrayBuffer}
+import scala.reflect.runtime.universe._
+       
+import sourcecode._
 
 // Optimizations apply directly to the Partition data structure, 
 // like mutating the connectivity of local BSPs
 // Computations are staged to be reified when lifting a HBSP to a BSP 
 trait Optimizer[T <: Partition, V <: Partition] {
-    def transform(bsps: T): V
+    def transform(part: T): V
 }
 
 object Optimizer {
@@ -100,6 +103,53 @@ object Optimizer {
 
                 def getMemberMessage[V](k: NodeId): V = part.getMemberMessage[V](k)
             }
+        }
+    }
+
+    // target the current Pregel architecture, where all vertices share the same compute
+    val vectorizeBSP = new Optimizer[Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}, Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}] {
+       
+        
+        def transform(part: Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}): Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId} = {
+            if (part.topo.nodes.size > 1) {
+                // get the runtime class of the BSP.State to check if all bsps have the same State type
+                val bsps = part.topo.nodes.map(_._2)
+                val bspType = bsps.head.getClass()
+                // only vectorize BSPs that are created from the same non-type-parameterized class definition. Assume that bsps generated from the same class def SHARE THE SAME RUN METHOD
+                
+                if (bsps.forall(i => i.getClass == bspType)) {
+
+                    val newArray = java.lang.reflect.Array.newInstance(bspType, bsps.size)
+                    bsps.zipWithIndex.foreach(i => {
+                        java.lang.reflect.Array.set(newArray, i._2, i._1)
+                    })
+                }
+
+                Util.debug(bspType)
+                Util.debug(bsps.head.state.getClass)
+
+                // // If all BSPs have the same type, then vectorize it
+                // if (bsps.tail.forall(i => i.state.getClass == stateType)){
+                //     // create an array that contains only the State 
+                //     val newArray = java.lang.reflect.Array.newInstance(stateType, bsps.size).asInstanceOf[Array[_]]
+                //     bsps.zipWithIndex.foreach(i => {
+                //         newArray.update(i._2, i._1.state)
+                //     })
+                //     // assert(newArray.asInstanceOf[Array[stateType]].size == bsps.size)
+                //     val updateStateMethod = typeOf[BSP with ComputeMethod with DoubleBuffer].decl(TermName("run")).asMethod
+                //     bsps.tail.forall { obj =>
+                //         val objUpdateStateMethod = typeOf[obj.type].decl(TermName("run")).asMethod
+                //         objUpdateStateMethod == updateStateMethod
+                //     }
+                //     Util.debug("all nodes have the same type")
+                // } else {
+                //     part
+                // }
+            } else {
+                part
+            }
+            part
+            // require(bsps.topo.nodes.map(_._2).forall(x => x.asInstanceOf[BSP with DoubleBuffer with ComputeMethod].State))
         }
     }
 }
