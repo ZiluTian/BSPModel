@@ -1,5 +1,4 @@
 package BSPModel
-package test
 
 object Util {
     def debug[V](value: sourcecode.Text[V])(implicit enclosing: sourcecode.Enclosing): Unit = {
