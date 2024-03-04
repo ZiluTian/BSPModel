@@ -5,6 +5,11 @@ import scala.reflect.runtime.universe._
        
 import sourcecode._
 
+import scala.reflect.runtime.currentMirror
+import scala.tools.reflect.ToolBox
+
+// import BSPModelMacros.FunctionWrapper
+
 // Optimizations apply directly to the Partition data structure, 
 // like mutating the connectivity of local BSPs
 // Computations are staged to be reified when lifting a HBSP to a BSP 
@@ -60,6 +65,7 @@ object Optimizer {
             // readFrom.foreach(i => println(f"$i,${i._2.mkString(", ")}"))
             // updatedNodes.foreach(i => println(f"${i._2.sendTo}"))
              
+
             new Partition {                
                 type NodeId = BSPId
                 type Value = BSP with DoubleBuffer
@@ -84,15 +90,28 @@ object Optimizer {
                                 case _ => b.sendTo 
                             }
 
+                            stagedExpr = if (localIds.isEmpty) {
+                                None
+                            } else {
+                                Some((localIds, (xs: Iterable[BSPId]) => combineMessages(xs.map(i => part.getMemberMessage[Message](i)).toList)))
+                            }
+
                             def combineMessages(ms: List[Message]): Option[Message] = b.combineMessages(ms)
                             def updateState(s: State, m: Option[Message]): State = b.updateState(s, m)
                             def stateToMessage(s: State): Message = b.stateToMessage(s)
 
-                            override def run(ms: List[Message]): Unit = {
-                                // println(f"Run is called! local ids are ${localIds} values are ${localIds.map(i => part.getMemberMessage[Message](i)).toList}")
-                                state = run(state,  localIds.map(i => part.getMemberMessage[Message](i)).toList ::: ms)
-                                // println(f"Updated state is ${state}")
+                            override def run(s: State, ms: List[Message]): State = {
+                                stagedExpr match {
+                                    case None => updateState(s, combineMessages(ms))
+                                    case Some(x) => updateState(s, combineMessages(x._2(x._1).get :: ms))
+                                }                              
                             }
+
+                            // override def run(ms: List[Message]): Unit = {
+                            //     // println(f"Run is called! local ids are ${localIds} values are ${localIds.map(i => part.getMemberMessage[Message](i)).toList}")
+                            //     state = run(state,  localIds.map(i => part.getMemberMessage[Message](i)).toList ::: ms)
+                            //     // println(f"Updated state is ${state}")
+                            // }
                         }
 
                         (bid, readFrom.get(bid) match {
@@ -113,42 +132,86 @@ object Optimizer {
         def transform(part: Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}): Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId} = {
             if (part.topo.nodes.size > 1) {
                 // get the runtime class of the BSP.State to check if all bsps have the same State type
-                val bsps = part.topo.nodes.map(_._2)
+                val (bspIds, bsps) = part.topo.nodes.toList.unzip
                 val bspType = bsps.head.getClass()
+
                 // only vectorize BSPs that are created from the same non-type-parameterized class definition. Assume that bsps generated from the same class def SHARE THE SAME RUN METHOD
                 
                 if (bsps.forall(i => i.getClass == bspType)) {
+                    new Partition {
+                        type NodeId = BSPId
+                        type Value = BSP with DoubleBuffer
 
-                    val newArray = java.lang.reflect.Array.newInstance(bspType, bsps.size)
-                    bsps.zipWithIndex.foreach(i => {
-                        java.lang.reflect.Array.set(newArray, i._2, i._1)
-                    })
+                        val id = part.id
+                        
+                        private val bsp = bsps.head.asInstanceOf[BSP with ComputeMethod with DoubleBuffer]
+                        private val bspValueType = bsp.state.getClass()
+
+                        val mergedBSP = new BSP with ComputeMethod with DoubleBuffer {
+                            type State = Array[_]
+                            
+                            val id = part.id
+                            val sendTo = List()
+
+                            // todo: what to put for Value (M)
+                            type Message = PartitionMessage{type M = Member; type Idx = NodeId}
+
+                            var state = java.lang.reflect.Array.newInstance(bspValueType, bsps.size).asInstanceOf[State]
+
+                            // todo: does not conform to PartitionMessage
+                            var publicState = state.map(i => bsp.stateToMessage(i.asInstanceOf[bsp.State]))
+
+                            def updateState(s: State, m: Option[Message]): State = ???
+                            def stateToMessage(s: State): Message = ???
+                            def combineMessages(ms: List[Message]): Option[Message] = ??? 
+                            // {
+                                // ms match {
+                                //     case Nil => None
+                                //     case m :: Nil => Some(m)
+                                //     case m :: tail =>  Some(new PartitionMessage {
+                                //         type M = Member
+                                //         type Idx = NodeId
+
+                                //         val value = tail.fold(m.value)((x, y) => x.value ++ y.value)
+                                //         val messageEncoding = m1.messageEncoding ++ m2.messageEncoding
+                                //         val schema = m1.schema ++ m2.schema
+                                //     })
+                                // }
+                            // }
+
+                            val stagedExprs = bsps.zipWithIndex.map(i => {
+                                java.lang.reflect.Array.set(state, i._2, i._1.state)
+                                i._1.stagedExpr match {
+                                    case Some((localIds, exp)) => // transform localIds into array-based offset
+                                        Some((localIds.map(i => bspIds.indexOf(i).toLong), exp))
+                                    case _ => None
+                                }
+                            })
+
+                            override def run(s: State, ms: List[Message]): State = {
+                                s.zipWithIndex.map(i => {
+                                    bsp.stagedExpr = stagedExprs(i._2).asInstanceOf[Option[(Iterable[BSPId], (Iterable[BSPId]) => Option[bsp.Message])]] 
+                                    bsp.run(i._1.asInstanceOf[bsp.State], List())
+                                    // println(f"The value of i after update is ${j}")
+                                }).asInstanceOf[State]
+                            }
+                        }
+
+                        val topo: Graph[NodeId, Value] = Graph(
+                            // merged node has the same id as the partition id
+                            Map(id -> mergedBSP),
+                            part.topo.edges,
+                            part.topo.cuts
+                        )
+
+                        def getMemberMessage[V](k: NodeId): V = topo.nodes.head._2.publicState.asInstanceOf[Array[_]](k.toInt).asInstanceOf[V]
+                    }
+                } else {
+                    part
                 }
-
-                Util.debug(bspType)
-                Util.debug(bsps.head.state.getClass)
-
-                // // If all BSPs have the same type, then vectorize it
-                // if (bsps.tail.forall(i => i.state.getClass == stateType)){
-                //     // create an array that contains only the State 
-                //     val newArray = java.lang.reflect.Array.newInstance(stateType, bsps.size).asInstanceOf[Array[_]]
-                //     bsps.zipWithIndex.foreach(i => {
-                //         newArray.update(i._2, i._1.state)
-                //     })
-                //     // assert(newArray.asInstanceOf[Array[stateType]].size == bsps.size)
-                //     val updateStateMethod = typeOf[BSP with ComputeMethod with DoubleBuffer].decl(TermName("run")).asMethod
-                //     bsps.tail.forall { obj =>
-                //         val objUpdateStateMethod = typeOf[obj.type].decl(TermName("run")).asMethod
-                //         objUpdateStateMethod == updateStateMethod
-                //     }
-                //     Util.debug("all nodes have the same type")
-                // } else {
-                //     part
-                // }
             } else {
                 part
             }
-            part
             // require(bsps.topo.nodes.map(_._2).forall(x => x.asInstanceOf[BSP with DoubleBuffer with ComputeMethod].State))
         }
     }

@@ -5,6 +5,9 @@ trait DoubleBuffer {
     this: BSP with ComputeMethod =>
     var publicState: Message = stateToMessage(state)
     
+    // runtime closures for staged expr
+    var stagedExpr: Option[(Iterable[BSPId], (Iterable[BSPId]) => Option[Message])] = None
+
     override def run(ms: List[Message]): Unit = {
         state = run(state, ms)
         publicState = stateToMessage(state)

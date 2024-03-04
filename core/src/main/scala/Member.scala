@@ -29,12 +29,6 @@ trait Partition extends Member{
     type NodeId
     type Value
 
-    // Allow the graph structure to change dynamically
-    // for different instances of partitions
-    // class Graph(val nodes: Map[NodeId, Value],
-    //     val edges: Map[NodeId, List[NodeId]],
-    //     val cuts: Map[PartitionId, List[NodeId]])
-
     val topo: Graph[NodeId, Value]
 
     def getMemberMessage[V](k: NodeId): V
