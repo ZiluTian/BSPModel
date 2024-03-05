@@ -2,8 +2,9 @@ package BSPModel
 
 // Hierarchical BSP is a scope whose members are partitions
 // optionally with some optimizations
-trait HierarchicalBSP extends Scope with Partition {self =>
-    type M = Partition
+trait HierarchicalBSP extends Scope {
+
+    type Member = Partition
 
     // trait Optimization {
     //     def transform(bsps: Partition): Partition

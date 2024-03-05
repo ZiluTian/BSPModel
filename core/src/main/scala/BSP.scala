@@ -1,10 +1,6 @@
 package BSPModel
 
-import scala.reflect.runtime.universe._
-
-sealed trait Member
-
-trait BSP extends Member {
+trait BSP {
     this: ComputeMethod =>
     // type S <: Scope
     // val scope: S
@@ -21,13 +17,4 @@ trait BSP extends Member {
     def message(): Message = {
         stateToMessage(state)
     }
-}
-
-trait Partition extends Member{
-    val id: PartitionId
-    // NodeId can be BSPId, but can also be vector id
-    type NodeId
-    type Value
-
-    val topo: Graph[NodeId, Value]
 }
