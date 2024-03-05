@@ -30,6 +30,4 @@ trait Partition extends Member{
     type Value
 
     val topo: Graph[NodeId, Value]
-
-    def getMemberMessage[V](k: NodeId): V
 }

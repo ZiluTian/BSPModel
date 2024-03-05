@@ -8,8 +8,6 @@ import sourcecode._
 import scala.reflect.runtime.currentMirror
 import scala.tools.reflect.ToolBox
 
-// import BSPModelMacros.FunctionWrapper
-
 // Optimizations apply directly to the Partition data structure, 
 // like mutating the connectivity of local BSPs
 // Computations are staged to be reified when lifting a HBSP to a BSP 
@@ -28,8 +26,6 @@ object Optimizer {
                 
                 val id = part.id
                 val topo: Graph[NodeId, Value] = Graph(tp.nodes.mapValues(b => DoubleBuffer.fromBSP(b.asInstanceOf[BSP with ComputeMethod])), tp.edges, tp.cuts)
-
-                def getMemberMessage[V](k: NodeId): V = part.getMemberMessage[V](k)
             }
         }
     }
@@ -64,7 +60,6 @@ object Optimizer {
 
             // readFrom.foreach(i => println(f"$i,${i._2.mkString(", ")}"))
             // updatedNodes.foreach(i => println(f"${i._2.sendTo}"))
-             
 
             new Partition {                
                 type NodeId = BSPId
@@ -75,43 +70,43 @@ object Optimizer {
                     part.topo.nodes.map(bsp => {
                         val (bid, b: BSP with ComputeMethod with DoubleBuffer) = bsp 
                         
-                        def genNewBSP(localIds: Iterable[BSPId]): BSP with ComputeMethod with DoubleBuffer = new BSP with ComputeMethod with DoubleBuffer {
+                        def genNewBSP(localIds: Iterable[BSPId]): BSP with ComputeMethod with DoubleBuffer = 
+                            new BSP with ComputeMethod with DoubleBuffer { selfBSP => 
 
-                            type State = b.State
-                            type Message = b.Message
-                            
-                            var state = b.state
-                            val id = b.id
+                                type State = b.State
+                                type Message = b.Message
+                                
+                                var state = b.state
+                                val id = b.id
 
-                            val sendTo = b.sendTo match {
-                                case FixedCommunication(_) => List()
-                                case DynamicCommunication(xs) => xs
-                                case HybridCommunication(xs, ys) => ys
-                                case _ => b.sendTo 
-                            }
+                                val sendTo = b.sendTo match {
+                                    case FixedCommunication(_) => List()
+                                    case DynamicCommunication(xs) => xs
+                                    case HybridCommunication(xs, ys) => ys
+                                    case _ => b.sendTo 
+                                }
 
-                            stagedExpr = if (localIds.isEmpty) {
-                                None
-                            } else {
-                                Some((localIds, (xs: Iterable[BSPId]) => combineMessages(xs.map(i => part.getMemberMessage[Message](i)).toList)))
-                            }
+                                val stagedExpr: Option[StagedExpr] = if (localIds.isEmpty) {
+                                    None
+                                } else {
+                                    Some(new StagedExpr {
+                                        type NodeId = BSPId
+                                        type Message = selfBSP.Message
 
-                            def combineMessages(ms: List[Message]): Option[Message] = b.combineMessages(ms)
-                            def updateState(s: State, m: Option[Message]): State = b.updateState(s, m)
-                            def stateToMessage(s: State): Message = b.stateToMessage(s)
+                                        val receiveFrom: List[NodeId] = localIds.toList
+                                        override def compile(): Message = {
+                                            assert(receiveFrom.size > 0)
+                                            println("Receive from contains values " + receiveFrom)
+                                            selfBSP.combineMessages(receiveFrom.map(i => {
+                                                topo.nodes.getOrElse(i, throw new Exception(f"BSP with index $i is not found!")).asInstanceOf[BSP with DoubleBuffer].publicState.asInstanceOf[Message]
+                                            })).get
+                                        }
+                                    })
+                                }
 
-                            override def run(s: State, ms: List[Message]): State = {
-                                stagedExpr match {
-                                    case None => updateState(s, combineMessages(ms))
-                                    case Some(x) => updateState(s, combineMessages(x._2(x._1).get :: ms))
-                                }                              
-                            }
-
-                            // override def run(ms: List[Message]): Unit = {
-                            //     // println(f"Run is called! local ids are ${localIds} values are ${localIds.map(i => part.getMemberMessage[Message](i)).toList}")
-                            //     state = run(state,  localIds.map(i => part.getMemberMessage[Message](i)).toList ::: ms)
-                            //     // println(f"Updated state is ${state}")
-                            // }
+                                def combineMessages(ms: List[Message]): Option[Message] = b.combineMessages(ms)
+                                def updateState(s: State, m: Option[Message]): State = b.updateState(s, m)
+                                def stateToMessage(s: State): Message = b.stateToMessage(s)
                         }
 
                         (bid, readFrom.get(bid) match {
@@ -119,100 +114,128 @@ object Optimizer {
                             case Some(xs) => genNewBSP(xs)
                         })
                     }).toMap, part.topo.edges, part.topo.cuts)
-
-                def getMemberMessage[V](k: NodeId): V = part.getMemberMessage[V](k)
             }
         }
     }
 
-    // target the current Pregel architecture, where all vertices share the same compute
-    val vectorizeBSP = new Optimizer[Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}, Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}] {
-       
+    // hierarchical, each cell is still a BSP
+    // rely on the getMemberMessage defined in the partition to access local values in the Array state. The partition can contain only one such a nested BSP
+    // compile away staged expr in the resulting BSP (no longer DoubleBuffer)
+    val mergeBSP = new Optimizer[Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}, Partition{type Value = BSP; type NodeId = BSPId}] {
         
-        def transform(part: Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}): Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId} = {
-            if (part.topo.nodes.size > 1) {
+        def transform(part: Partition{type Value = BSP with DoubleBuffer; type NodeId = BSPId}): Partition{type Value = BSP; type NodeId = BSPId} = {
+            assert(part.topo.nodes.size >= 1)
+            
+            // if (part.topo.nodes.size > 1) {
                 // get the runtime class of the BSP.State to check if all bsps have the same State type
-                val (bspIds, bsps) = part.topo.nodes.toList.unzip
-                val bspType = bsps.head.getClass()
-
-                // only vectorize BSPs that are created from the same non-type-parameterized class definition. Assume that bsps generated from the same class def SHARE THE SAME RUN METHOD
-                
-                if (bsps.forall(i => i.getClass == bspType)) {
-                    new Partition {
-                        type NodeId = BSPId
-                        type Value = BSP with DoubleBuffer
-
-                        val id = part.id
-                        
-                        private val bsp = bsps.head.asInstanceOf[BSP with ComputeMethod with DoubleBuffer]
-                        private val bspValueType = bsp.state.getClass()
-
-                        val mergedBSP = new BSP with ComputeMethod with DoubleBuffer {
-                            type State = Array[_]
+            val (bspIds, bsps) = part.topo.nodes.toList.unzip
                             
-                            val id = part.id
-                            val sendTo = List()
+            new Partition {self =>
+                type NodeId = BSPId
+                type Value = BSP
 
-                            // todo: what to put for Value (M)
-                            type Message = PartitionMessage{type M = Member; type Idx = NodeId}
+                val id = part.id
 
-                            var state = java.lang.reflect.Array.newInstance(bspValueType, bsps.size).asInstanceOf[State]
+                def genNewBSP(b: BSP with ComputeMethod with DoubleBuffer): BSP with ComputeMethod with DoubleBuffer = 
+                    new BSP with ComputeMethod with DoubleBuffer { selfBSP => 
+                        type State = b.State
+                        type Message = b.Message
+                        
+                        var state = b.state
+                        val id = b.id
 
-                            // todo: does not conform to PartitionMessage
-                            var publicState = state.map(i => bsp.stateToMessage(i.asInstanceOf[bsp.State]))
+                        val sendTo = b.sendTo
 
-                            def updateState(s: State, m: Option[Message]): State = ???
-                            def stateToMessage(s: State): Message = ???
-                            def combineMessages(ms: List[Message]): Option[Message] = ??? 
-                            // {
-                                // ms match {
-                                //     case Nil => None
-                                //     case m :: Nil => Some(m)
-                                //     case m :: tail =>  Some(new PartitionMessage {
-                                //         type M = Member
-                                //         type Idx = NodeId
+                        val stagedExpr: Option[StagedExpr] = if (b.stagedExpr.isEmpty) {
+                            None
+                        } else {
+                            Some(new StagedExpr {
+                                type NodeId = Int
+                                type Message = selfBSP.Message
+                                val receiveFrom: List[Int] = b.stagedExpr.get.receiveFrom.map(r => bspIds.indexOf(r))
 
-                                //         val value = tail.fold(m.value)((x, y) => x.value ++ y.value)
-                                //         val messageEncoding = m1.messageEncoding ++ m2.messageEncoding
-                                //         val schema = m1.schema ++ m2.schema
-                                //     })
-                                // }
-                            // }
-
-                            val stagedExprs = bsps.zipWithIndex.map(i => {
-                                java.lang.reflect.Array.set(state, i._2, i._1.state)
-                                i._1.stagedExpr match {
-                                    case Some((localIds, exp)) => // transform localIds into array-based offset
-                                        Some((localIds.map(i => bspIds.indexOf(i).toLong), exp))
-                                    case _ => None
+                                override def compile(): Message = {
+                                    selfBSP.combineMessages(receiveFrom.map(i => topo.nodes.head._2.state.asInstanceOf[(Array[BSP with ComputeMethod with DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message])).get
                                 }
                             })
-
-                            override def run(s: State, ms: List[Message]): State = {
-                                s.zipWithIndex.map(i => {
-                                    bsp.stagedExpr = stagedExprs(i._2).asInstanceOf[Option[(Iterable[BSPId], (Iterable[BSPId]) => Option[bsp.Message])]] 
-                                    bsp.run(i._1.asInstanceOf[bsp.State], List())
-                                    // println(f"The value of i after update is ${j}")
-                                }).asInstanceOf[State]
-                            }
                         }
 
-                        val topo: Graph[NodeId, Value] = Graph(
-                            // merged node has the same id as the partition id
-                            Map(id -> mergedBSP),
-                            part.topo.edges,
-                            part.topo.cuts
-                        )
-
-                        def getMemberMessage[V](k: NodeId): V = topo.nodes.head._2.publicState.asInstanceOf[Array[_]](k.toInt).asInstanceOf[V]
+                        def combineMessages(ms: List[Message]): Option[Message] = b.combineMessages(ms)
+                        def updateState(s: State, m: Option[Message]): State = b.updateState(s, m)
+                        def stateToMessage(s: State): Message = b.stateToMessage(s)
                     }
-                } else {
-                    part
+
+                // merged BSP no longer has a publicState for other BSPs
+                val mergedBSP = new BSP with ComputeMethod {
+                    // padded with cached message results
+                    // without preprocessing to know the 
+                    type State = (Array[BSP with ComputeMethod with DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])
+                    
+                    val id = part.id
+                    val sendTo = List()
+
+                    // todo: what to put for Value (M)
+                    type Message = PartitionMessage{type M = BSP; type Idx = NodeId}
+
+                    var state: State = (bsps.map(b => genNewBSP(b.asInstanceOf[BSP with ComputeMethod with DoubleBuffer])).toArray.asInstanceOf[Array[BSP with ComputeMethod with DoubleBuffer]], None)
+
+                    // simply update the message component of the state
+                    // executing BSPs in the array is done in in-place run
+                    def updateState(s: State, m: Option[Message]): State = {
+                        m match {
+                            case None => s
+                            case Some(m2) => if (s._2.isEmpty){
+                                (s._1, Some(m2))
+                            } else {
+                                    val combinedMsg = new PartitionMessage {
+                                        type M = BSP
+                                        type Idx = NodeId
+
+                                        val value = s._2.get.value ++ m2.value
+                                        val messageEncoding = s._2.get.messageEncoding ++ m2.messageEncoding
+                                        val schema = s._2.get.schema ++ m2.schema }                                        
+                                (s._1, Some(combinedMsg))
+                            }
+                        }
+                    }
+
+                    def stateToMessage(s: State): Message = ???
+                    def combineMessages(ms: List[Message]): Option[Message] = {
+                        ms match {
+                            case Nil => None
+                            case m :: Nil => Some(m)
+                            case _ => 
+                                Some(new PartitionMessage {
+                                    type M = BSP
+                                    type Idx = NodeId
+
+                                    val value = ms.map(i => i.value).flatten
+                                    val messageEncoding = ms.map(i => i.messageEncoding).flatten
+                                    val schema = ms.flatMap(i => i.schema).toMap
+                                })
+                        }
+                    }
+
+                    // in-place update to each BSP inside
+                    override def run(ms: List[Message]): Unit = {
+                        state._1.foreach(bsp => {
+                            bsp.run(List())
+                        })
+                        state._1.foreach(_.updatePublicState)
+                    }
+
+                    override def toString(): String = {
+                        state._1.map(_.state).mkString(", ")
+                    }
                 }
-            } else {
-                part
+
+                val topo: Graph[NodeId, Value] = Graph(
+                    // merged node has the same id as the partition id
+                    Map(id -> mergedBSP),
+                    part.topo.edges,
+                    part.topo.cuts
+                )
             }
-            // require(bsps.topo.nodes.map(_._2).forall(x => x.asInstanceOf[BSP with DoubleBuffer with ComputeMethod].State))
         }
     }
 }

@@ -37,6 +37,4 @@
 //     //     val cuts: Map[PartitionId, List[NodeId]])
 
 //     val topo: Graph[NodeId, Value]
-
-//     def getMemberMessage[V](k: NodeId): V
 // }

@@ -53,11 +53,6 @@ class CounterTest extends AnyFunSuite {
             type NodeId = BSPId
             type Value = BSP
             val topo = Graph(agents.map(i => (i.id, i)).toMap, Map(), Map())
-            
-            def getMemberMessage[Int](k: BSPId): Int = {
-                val bsp = topo.nodes(k)
-                bsp.asInstanceOf[BSP with ComputeMethod].state.asInstanceOf[Int]
-            }
         }
 
         // initPartition.topo.nodes.map()
@@ -67,13 +62,32 @@ class CounterTest extends AnyFunSuite {
         val ans2 = Optimizer.pushToPullAndUnbox.transform(ans)
         // ans2.topo.nodes.map(i => println(f"${i._2.sendTo}"))
 
-        Optimizer.vectorizeBSP.transform(ans2)
+        // Range(1, 5).foreach(_ => {
+        //   ans2.topo.nodes.foreach(i => {
+        //     i._2.run(List())
+        //   })  
+          
+        //   ans2.topo.nodes.foreach(i => {
+        //     i._2.updatePublicState() 
+        //   })
 
+        //   println("State is " + ans2.topo.nodes.map(_._2.state).mkString(", "))
+        //   println("Public state is " + ans2.topo.nodes.map(_._2.publicState).mkString(", "))
+        // })
+
+        // ans2.topo.nodes.map(i => println(i._2.state))
+        // ans2.topo.nodes.map(i => println(i._2.publicState))
+
+        val ans3 = Optimizer.mergeBSP.transform(ans2)
+
+        // println(ans2.topo.nodes.head._2)
         // benchmarkTool[Unit](
-            Range(1, 10).foreach(_ => {
-                ans2.topo.nodes.map(i => {
+            Range(1, 5).foreach(_ => {
+                ans3.topo.nodes.map(i => {
                     i._2.run(List()) // 693382, 416672, 180646
-                    debug(i._2.state)
+                    // println(i._2.state)
+                    // println(i._2.publicState)
+                    println(i._2.toString)
                 })
             })
         // )
