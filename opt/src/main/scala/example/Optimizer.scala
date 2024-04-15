@@ -1,27 +1,18 @@
 package BSPModel
 
 import scala.collection.mutable.{Map => MutMap, ArrayBuffer}
-import scala.reflect.runtime.universe._
-       
-import sourcecode._
 
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
-
-// Optimizations apply directly to the Partition data structure, 
-// like mutating the connectivity of local BSPs
-// Computations are staged to be reified when lifting a HBSP to a BSP 
 trait Optimizer[T <: Partition, V <: Partition] {
     def transform(part: T): V
 }
 
 object Optimizer {
-    val bspToDoubleBuffer = new Optimizer[Partition{type Member=BSP with ComputeMethod; type NodeId = BSPId}, Partition{type Member=BSP with ComputeMethod with DoubleBuffer; type NodeId = BSPId}] {
-        def transform(part: Partition{type Member = BSP with ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP with ComputeMethod with DoubleBuffer; type NodeId = BSPId} = {
+    val bspToDoubleBuffer = new Optimizer[Partition{type Member=BSP & ComputeMethod; type NodeId = BSPId}, Partition{type Member=BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}] {
+        def transform(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId} = {
             new Partition {
                                 
                 type NodeId = part.NodeId
-                type Member = BSP with ComputeMethod with DoubleBuffer
+                type Member = BSP & ComputeMethod & DoubleBuffer
                 
                 val id = part.id
                 val members = part.members.map(b => DoubleBuffer.fromBSP(b))
@@ -32,9 +23,9 @@ object Optimizer {
     }
 
     // transform send to read
-    val pushToPullAndUnbox = new Optimizer[Partition{type Member = BSP with ComputeMethod with DoubleBuffer; type NodeId = BSPId}, Partition{type Member = BSP with ComputeMethod with DoubleBuffer; type NodeId = BSPId}] {
-        def transform(part: Partition{type Member = BSP with ComputeMethod with DoubleBuffer; type NodeId = BSPId}): Partition{type Member = BSP with ComputeMethod with DoubleBuffer; type NodeId = BSPId} = {           
-            type Member = BSP with ComputeMethod with DoubleBuffer
+    val pushToPullAndUnbox = new Optimizer[Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}, Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}] {
+        def transform(part: Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId} = {           
+            type Member = BSP & ComputeMethod & DoubleBuffer
             
             val id = part.id
 
@@ -65,11 +56,11 @@ object Optimizer {
 
             new Partition {                
                 type NodeId = BSPId
-                type Member = BSP with ComputeMethod with DoubleBuffer
+                type Member = BSP & ComputeMethod & DoubleBuffer
 
                 val id = part.id
                 val members: List[Member] = part.members.map(bsp => {
-                    def genNewBSP(localIds: Iterable[BSPId]): BSP with ComputeMethod with DoubleBuffer = 
+                    def genNewBSP(localIds: Iterable[BSPId]): BSP & ComputeMethod & DoubleBuffer = 
                         new BSP with ComputeMethod with DoubleBuffer { selfBSP => 
 
                             type State = bsp.State
@@ -94,7 +85,7 @@ object Optimizer {
                                     assert(receiveFrom.size > 0)
                                     println("Receive from contains values " + receiveFrom)
                                     selfBSP.combineMessages(receiveFrom.map(i => {
-                                        members(i).asInstanceOf[BSP with DoubleBuffer].publicState.asInstanceOf[Message]
+                                        members(i).publicState.asInstanceOf[bsp.Message]
                                     })).get
                                 }
                             })
@@ -118,9 +109,9 @@ object Optimizer {
     // hierarchical, each cell is still a BSP
     // rely on the getMemberMessage defined in the partition to access local values in the Array state. The partition can contain only one such a nested BSP
     // compile away staged expr in the resulting BSP (no longer DoubleBuffer)
-    val mergeBSP = new Optimizer[Partition{type Member = BSP with ComputeMethod with DoubleBuffer; type NodeId = BSPId}, Partition{type Member = BSP with ComputeMethod; type NodeId = BSPId}] {
+    val mergeBSP = new Optimizer[Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}, Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}] {
         
-        def transform(part: Partition{type Member = BSP with ComputeMethod with DoubleBuffer; type NodeId = BSPId}): Partition{type Member = BSP with ComputeMethod; type NodeId = BSPId} = {
+        def transform(part: Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId} = {
             assert(part.members.size >= 1)
             
             // if (part.members.size > 1) {
@@ -129,11 +120,11 @@ object Optimizer {
                             
             new Partition {self =>
                 type NodeId = BSPId
-                type Member = BSP with ComputeMethod
+                type Member = BSP & ComputeMethod
 
                 val id = part.id
 
-                def genNewBSP(b: BSP with ComputeMethod with DoubleBuffer): BSP with ComputeMethod with DoubleBuffer = 
+                def genNewBSP(b: BSP & ComputeMethod & DoubleBuffer): BSP & ComputeMethod & DoubleBuffer = 
                     new BSP with ComputeMethod with DoubleBuffer { selfBSP => 
                         type State = b.State
                         type Message = b.Message
@@ -152,7 +143,7 @@ object Optimizer {
                                 val receiveFrom: List[Int] = b.stagedComputation.get.receiveFrom.map(r => bspIds.indexOf(r))
 
                                 override def compile(): Message = {
-                                    selfBSP.combineMessages(receiveFrom.map(i => members.head.state.asInstanceOf[(Array[BSP with ComputeMethod with DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message])).get
+                                    selfBSP.combineMessages(receiveFrom.map(i => members.head.state.asInstanceOf[(Array[BSP & ComputeMethod & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message])).get
                                 }
                             })
                         }
@@ -166,7 +157,7 @@ object Optimizer {
                 val mergedBSP = new BSP with ComputeMethod {
                     // padded with cached message results
                     // without preprocessing to know the 
-                    type State = (Array[BSP with ComputeMethod with DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])
+                    type State = (Array[BSP & ComputeMethod & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])
                     
                     val id = part.id
                     val sendTo = List()
@@ -174,7 +165,7 @@ object Optimizer {
                     // todo: what to put for Member (M)
                     type Message = PartitionMessage{type M = BSP; type Idx = NodeId}
 
-                    var state: State = (part.members.map(b => genNewBSP(b.asInstanceOf[BSP with ComputeMethod with DoubleBuffer])).toArray.asInstanceOf[Array[BSP with ComputeMethod with DoubleBuffer]], None)
+                    var state: State = (part.members.map(b => genNewBSP(b.asInstanceOf[BSP & ComputeMethod & DoubleBuffer])).toArray.asInstanceOf[Array[BSP & ComputeMethod & DoubleBuffer]], None)
 
                     // simply update the message component of the state
                     // executing BSPs in the array is done in in-place run
@@ -184,13 +175,14 @@ object Optimizer {
                             case Some(m2) => if (s._2.isEmpty){
                                 (s._1, Some(m2))
                             } else {
-                                    val combinedMsg = new PartitionMessage {
-                                        type M = BSP
-                                        type Idx = NodeId
+                                val combinedMsg = new PartitionMessage {
+                                    type M = BSP
+                                    type Idx = NodeId
 
-                                        val value = s._2.get.value ++ m2.value
-                                        val messageEncoding = s._2.get.messageEncoding ++ m2.messageEncoding
-                                        val schema = s._2.get.schema ++ m2.schema }                                        
+                                    val value = s._2.get.value ++ m2.value
+                                    val messageEncoding = s._2.get.messageEncoding ++ m2.messageEncoding
+                                    val schema = s._2.get.schema ++ m2.schema
+                                }                                        
                                 (s._1, Some(combinedMsg))
                             }
                         }
@@ -218,7 +210,7 @@ object Optimizer {
                         state._1.foreach(bsp => {
                             bsp.run(List())
                         })
-                        state._1.foreach(_.updatePublicState)
+                        state._1.foreach(_.updatePublicState())
                     }
 
                     override def toString(): String = {

@@ -49,10 +49,13 @@ class CounterTest extends AnyFunSuite {
         val agents = g.map(i => new Cell(i._1, i._2.toSeq))
 
         val initPartition = new Partition {
-            val id = 1
+            type Member = BSP & ComputeMethod
             type NodeId = BSPId
             type Value = BSP
-            val topo = Graph(agents.map(i => (i.id, i)).toMap, Map(), Map())
+            val id = 1
+
+            val topo = Graph(Map(), Map())
+            val members = agents.toList
         }
 
         // initPartition.topo.nodes.map()
@@ -83,11 +86,11 @@ class CounterTest extends AnyFunSuite {
         // println(ans2.topo.nodes.head._2)
         // benchmarkTool[Unit](
             Range(1, 5).foreach(_ => {
-                ans3.topo.nodes.map(i => {
-                    i._2.run(List()) // 693382, 416672, 180646
+                ans3.members.map(i => {
+                    i.run(List()) // 693382, 416672, 180646
                     // println(i._2.state)
                     // println(i._2.publicState)
-                    println(i._2.toString)
+                    println(i.toString)
                 })
             })
         // )
