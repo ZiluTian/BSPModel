@@ -6,15 +6,16 @@ trait DoubleBuffer {
     this: BSP with ComputeMethod =>
     var publicState: Message = stateToMessage(state)
     
-    // runtime closures for staged expr
-    val stagedExpr: Option[StagedExpr]
+    // compile-time staging
+    val stagedComputation: Option[StagedExpr]
 
     def updatePublicState(): Unit = {
         publicState = stateToMessage(state)
     }
     
+    // todo: runtime staging to evaluate stagedComputation only once
     override def run(ms: List[Message]): Unit = {
-        stagedExpr match {
+        stagedComputation match {
             case None => state = run(state,  ms)
             case Some(x) => {
                 val stagedRes = x.compile()
@@ -37,7 +38,7 @@ object DoubleBuffer {
             var state = b.state
             val sendTo = b.sendTo
 
-            val stagedExpr = None
+            val stagedComputation = None
             
             def combineMessages(ms: List[Message]): Option[Message] = b.combineMessages(ms)
             

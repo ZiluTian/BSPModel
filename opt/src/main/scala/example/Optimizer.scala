@@ -85,7 +85,7 @@ object Optimizer {
                                 case _ => bsp.sendTo 
                             }
 
-                            val stagedExpr: Option[StagedExpr] = Some(new StagedExpr {
+                            val stagedComputation: Option[StagedExpr] = Some(new StagedExpr {
                                 type NodeId = Int
                                 type Message = selfBSP.Message
 
@@ -143,13 +143,13 @@ object Optimizer {
 
                         val sendTo = b.sendTo
 
-                        val stagedExpr: Option[StagedExpr] = if (b.stagedExpr.isEmpty) {
+                        val stagedComputation: Option[StagedExpr] = if (b.stagedComputation.isEmpty) {
                             None
                         } else {
                             Some(new StagedExpr {
                                 type NodeId = Int
                                 type Message = selfBSP.Message
-                                val receiveFrom: List[Int] = b.stagedExpr.get.receiveFrom.map(r => bspIds.indexOf(r))
+                                val receiveFrom: List[Int] = b.stagedComputation.get.receiveFrom.map(r => bspIds.indexOf(r))
 
                                 override def compile(): Message = {
                                     selfBSP.combineMessages(receiveFrom.map(i => members.head.state.asInstanceOf[(Array[BSP with ComputeMethod with DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message])).get
