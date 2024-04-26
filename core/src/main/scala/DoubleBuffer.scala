@@ -6,7 +6,7 @@ import scala.quoted.*
 // todo: restrict publicState to have read-only access to other BSPs but read-write only by the owner BSP
 trait DoubleBuffer {
     this: BSP & ComputeMethod =>
-    var publicState: Message = stateToMessage(state)
+    var publicState: Message
     
     // runtime staging (JIT compiled per run)
     val stagedComputation: Option[StagedExpr]
@@ -37,6 +37,8 @@ object DoubleBuffer {
 
             val id = b.id
             var state = b.state
+            var publicState = b.stateToMessage(b.state)
+
             val sendTo = b.sendTo
 
             val stagedComputation = None

@@ -67,6 +67,8 @@ object Optimizer {
                             type Message = bsp.Message
                             
                             var state = bsp.state
+                            var publicState = bsp.stateToMessage(bsp.state)
+
                             val id = bsp.id
 
                             val sendTo = bsp.sendTo match {
@@ -81,9 +83,10 @@ object Optimizer {
                                 type Message = selfBSP.Message
 
                                 val receiveFrom: List[Int] = localIds.toList.map(i => indexedId(i))
+                                
                                 override def compile(): Message = {
                                     assert(receiveFrom.size > 0)
-                                    println("Receive from contains values " + receiveFrom)
+                                    // println("Receive from contains values " + receiveFrom)
                                     selfBSP.combineMessages(receiveFrom.map(i => {
                                         members(i).publicState.asInstanceOf[bsp.Message]
                                     })).get
@@ -130,6 +133,7 @@ object Optimizer {
                         type Message = b.Message
                         
                         var state = b.state
+                        var publicState = b.stateToMessage(b.state)
                         val id = b.id
 
                         val sendTo = b.sendTo
