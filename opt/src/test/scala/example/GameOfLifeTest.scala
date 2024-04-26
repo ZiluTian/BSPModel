@@ -9,41 +9,49 @@ import org.scalatest._
 import funsuite._
 
 // A counter example that adds received messages to the current value
-class CounterTest extends AnyFunSuite {
-    trait CounterCompute extends ComputeMethod {
-        type State = Int
+class GoLTest extends AnyFunSuite {
+    trait GoLCompute extends ComputeMethod {
+        type State = Boolean
         type Message = Int
 
         def combineMessages(m1: List[Int]): Option[Int] = {
+            // println(f"Messages received are ${m1}")
             m1 match {
                 case Nil => None
-                case m :: Nil => Some(m)
-                case m :: tail => Some(tail.fold(m)(_+_))
+                case _ => Some(m1.fold(0)(_+_))
             }
         }
 
-        def updateState(s: Int, m: Option[Int]): Int = {
+        def updateState(s: Boolean, m: Option[Int]): Boolean = {
             m match {
-                case None => s
-                case Some(x) =>                 
-                    s + x
+                case None => {
+                    s
+                }
+                case Some(totalAlive) =>     
+                    if (totalAlive == 3) {
+                        true
+                    } else if (totalAlive < 3 || totalAlive > 3) {
+                        false
+                    } else {
+                        s
+                    }
             }
         }
 
-        def stateToMessage(s: Int): Int = {
-            s
+        def stateToMessage(s: Boolean): Int = {
+            if (s) 1 else 0
         }
     }
 
-    class Cell(pos: BSPId, neighbors: Seq[BSPId]) extends BSP with CounterCompute {
-        var state: Int = 1
+    class Cell(pos: BSPId, neighbors: Seq[BSPId]) extends BSP with GoLCompute {
+        var state: Boolean = Random.nextBoolean()
         override val id = pos
         val sendTo = FixedCommunication(neighbors) 
     } 
 
-    test("Counter should increse its value in every round") {
-        val width = 10
-        val height = 10
+    test("Game of life example should change the state of population in every round") {
+        val width = 100
+        val height = 100
         val g = new Torus2DGraph(width, height, 0)
 
         val agents = g.map(i => new Cell(i._1, i._2.toSeq))
@@ -72,7 +80,6 @@ class CounterTest extends AnyFunSuite {
                 ans.members.map(i => {
                     i.run(List())
                     // println(i.toString)
-
                 })
             })
         ) 
