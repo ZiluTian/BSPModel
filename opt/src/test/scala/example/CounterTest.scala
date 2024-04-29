@@ -14,7 +14,7 @@ class CounterTest extends AnyFunSuite {
         type State = Int
         type Message = Int
 
-        def combineMessages(m1: List[Int]): Option[Int] = {
+        def partialCompute(m1: List[Int]): Option[Int] = {
             m1 match {
                 case Nil => None
                 case m :: Nil => Some(m)
@@ -42,8 +42,8 @@ class CounterTest extends AnyFunSuite {
     } 
 
     test("Counter should increse its value in every round") {
-        val width = 10
-        val height = 10
+        val width = 100
+        val height = 100
         val g = new Torus2DGraph(width, height, 0)
 
         val agents = g.map(i => new Cell(i._1, i._2.toSeq))
@@ -60,8 +60,8 @@ class CounterTest extends AnyFunSuite {
         }
 
         def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId} = {
-            val ans = Optimizer.bspToDoubleBuffer.transform(part) 
-            val ans2 = Optimizer.pushToPullAndUnbox.transform(ans)
+            // val ans = Optimizer.bspToDoubleBuffer.transform(part) 
+            val ans2 = Optimizer.bspToDoubleBuffer.transform(part)
             Optimizer.mergeBSP.transform(ans2)
         }
 
@@ -72,7 +72,6 @@ class CounterTest extends AnyFunSuite {
                 ans.members.map(i => {
                     i.run(List())
                     // println(i.toString)
-
                 })
             })
         ) 

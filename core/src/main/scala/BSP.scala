@@ -2,8 +2,6 @@ package BSPModel
 
 trait BSP {
     this: ComputeMethod =>
-    // type S <: Scope
-    // val scope: S
 
     val id: BSPId
     var state: State

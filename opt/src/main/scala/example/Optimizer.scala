@@ -7,31 +7,17 @@ trait Optimizer[T <: Partition, V <: Partition] {
 }
 
 object Optimizer {
+    // transform send to read
     val bspToDoubleBuffer = new Optimizer[Partition{type Member=BSP & ComputeMethod; type NodeId = BSPId}, Partition{type Member=BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}] {
         def transform(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId} = {
-            new Partition {
-                                
-                type NodeId = part.NodeId
-                type Member = BSP & ComputeMethod & DoubleBuffer
-                
-                val id = part.id
-                val members = part.members.map(b => DoubleBuffer.fromBSP(b))
-
-                val topo: Graph[NodeId] = part.topo
-            }
-        }
-    }
-
-    // transform send to read
-    val pushToPullAndUnbox = new Optimizer[Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}, Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}] {
-        def transform(part: Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId} = {           
             type Member = BSP & ComputeMethod & DoubleBuffer
-            
             val id = part.id
 
             // preprocess, populate the metavariable readFrom
             val readFrom: MutMap[BSPId, ArrayBuffer[BSPId]] = MutMap[BSPId, ArrayBuffer[BSPId]]()
 
+            // transform sendTo to receiveFrom based on the connectivity info
+            // unbox the auxiliary data structure
             part.members.foreach(bsp => {
                 bsp.sendTo match {
                     case FixedCommunication(xs) => {
@@ -47,14 +33,15 @@ object Optimizer {
                     }
                     case _ =>
                 }
-            }) 
+            })
 
             // readFrom.foreach(i => println(f"$i,${i._2.mkString(", ")}"))
             // updatedNodes.foreach(i => println(f"${i._2.sendTo}"))
 
+            // Generate an index that maps BSPId to the local offset within the scope
             val indexedId: Map[Long, Int] = part.members.zipWithIndex.map(i => (i._1.id, i._2)).toMap
 
-            new Partition {                
+            new Partition {
                 type NodeId = BSPId
                 type Member = BSP & ComputeMethod & DoubleBuffer
 
@@ -86,21 +73,22 @@ object Optimizer {
                                 
                                 override def compile(): Message = {
                                     assert(receiveFrom.size > 0)
-                                    // println("Receive from contains values " + receiveFrom)
-                                    selfBSP.combineMessages(receiveFrom.map(i => {
+                                    
+                                    selfBSP.partialCompute(receiveFrom.map(i => {
                                         members(i).publicState.asInstanceOf[bsp.Message]
                                     })).get
                                 }
+                                // println("Receive from contains values " + receiveFrom)                                    
                             })
 
-                            def combineMessages(ms: List[Message]): Option[Message] = bsp.combineMessages(ms)
+                            def partialCompute(ms: List[Message]): Option[Message] = bsp.partialCompute(ms)
                             def updateState(s: State, m: Option[Message]): State = bsp.updateState(s, m)
                             def stateToMessage(s: State): Message = bsp.stateToMessage(s)
                     }
 
                     readFrom.get(bsp.id) match {
                         case Some(xs) if xs.size > 0 => genNewBSP(xs)
-                        case _ => bsp
+                        case _ => throw new Exception("Invalid exception!")
                     }
                 })
 
@@ -147,12 +135,12 @@ object Optimizer {
                                 val receiveFrom: List[Int] = b.stagedComputation.get.receiveFrom.map(r => bspIds.indexOf(r))
 
                                 override def compile(): Message = {
-                                    selfBSP.combineMessages(receiveFrom.map(i => members.head.state.asInstanceOf[(Array[BSP & ComputeMethod & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message])).get
+                                    selfBSP.partialCompute(receiveFrom.map(i => members.head.state.asInstanceOf[(Array[BSP & ComputeMethod & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message])).get
                                 }
                             })
                         }
 
-                        def combineMessages(ms: List[Message]): Option[Message] = b.combineMessages(ms)
+                        def partialCompute(ms: List[Message]): Option[Message] = b.partialCompute(ms)
                         def updateState(s: State, m: Option[Message]): State = b.updateState(s, m)
                         def stateToMessage(s: State): Message = b.stateToMessage(s)
                     }
@@ -193,7 +181,7 @@ object Optimizer {
                     }
 
                     def stateToMessage(s: State): Message = ???
-                    def combineMessages(ms: List[Message]): Option[Message] = {
+                    def partialCompute(ms: List[Message]): Option[Message] = {
                         ms match {
                             case Nil => None
                             case m :: Nil => Some(m)

@@ -14,7 +14,7 @@ class GoLTest extends AnyFunSuite {
         type State = Boolean
         type Message = Int
 
-        def combineMessages(m1: List[Int]): Option[Int] = {
+        def partialCompute(m1: List[Int]): Option[Int] = {
             // println(f"Messages received are ${m1}")
             m1 match {
                 case Nil => None
@@ -69,8 +69,7 @@ class GoLTest extends AnyFunSuite {
 
         def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId} = {
             val ans = Optimizer.bspToDoubleBuffer.transform(part) 
-            val ans2 = Optimizer.pushToPullAndUnbox.transform(ans)
-            Optimizer.mergeBSP.transform(ans2)
+            Optimizer.mergeBSP.transform(ans)
         }
 
         val ans = optimize(initPartition) 

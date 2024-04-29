@@ -7,6 +7,7 @@ lazy val commonSettings = Seq(
   libraryDependencies += "org.scala-lang" %% "scala3-staging" % scalaVersion.value,
   libraryDependencies += "org.scalactic" %% "scalactic" % "3.2.18",
   libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.18" % "test", 
+  libraryDependencies += "org.scalanlp" %% "breeze" % "2.0.1-RC1",
   // libraryDependencies += "org.scalameta" %% "scalameta" % "4.9.1",
   // libraryDependencies += scalaVersion("org.scala-lang" % "scala-reflect" % _).value,
   libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.1",
