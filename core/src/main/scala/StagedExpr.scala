@@ -5,5 +5,5 @@ trait StagedExpr {
     type Message
 
     val receiveFrom: List[NodeId]
-    def compile(): Message
+    def compile(): Option[Message]
 }

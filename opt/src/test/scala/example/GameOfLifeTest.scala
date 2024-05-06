@@ -10,7 +10,7 @@ import funsuite._
 
 // A counter example that adds received messages to the current value
 class GoLTest extends AnyFunSuite {
-    trait GoLCompute extends ComputeMethod {
+    trait GoLCompute extends StatelessComputeMethod {
         type State = Boolean
         type Message = Int
 
@@ -67,10 +67,8 @@ class GoLTest extends AnyFunSuite {
             val members = agents.toList
         }
 
-        def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId} = {
-            val ans = Optimizer.bspToDoubleBuffer.transform(part) 
-            Optimizer.mergeBSP.transform(ans)
-        }
+        def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}) = 
+            DoubleBufferToBSP.transform(BSPToDoubleBuffer.transform(part))
 
         val ans = optimize(initPartition) 
 

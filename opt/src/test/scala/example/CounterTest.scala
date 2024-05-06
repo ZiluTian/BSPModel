@@ -59,11 +59,9 @@ class CounterTest extends AnyFunSuite {
             val members = agents.toList
         }
 
-        def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId} = {
-            // val ans = Optimizer.bspToDoubleBuffer.transform(part) 
-            val ans2 = Optimizer.bspToDoubleBuffer.transform(part)
-            Optimizer.mergeBSP.transform(ans2)
-        }
+        def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}) = 
+            // DoubleBufferToBSP.transform(BSPToDoubleBuffer.transform(part))
+            BSPToDoubleBuffer.transform(part)
 
         val ans = optimize(initPartition) 
 

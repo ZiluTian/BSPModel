@@ -86,7 +86,7 @@ class ERMTest extends AnyFunSuite {
         val sendTo = FixedCommunication(neighbors) 
     } 
 
-    test("Game of life example should change the state of population in every round") {
+    test(f"${experimentName} example should run") {
         val graph: Map[Long, Iterable[Long]] = (new ErdosRenyiGraph(population, connectivity)).g
         val agents = graph.map(i => new PersonAgent(i._1, i._2.toSeq))
 
@@ -101,10 +101,10 @@ class ERMTest extends AnyFunSuite {
             val members = agents.toList
         }
 
-        def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId} = {
-            val ans = Optimizer.bspToDoubleBuffer.transform(part) 
-            Optimizer.mergeBSP.transform(ans)
-        }
+        def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}) = 
+            DoubleBufferToBSP.transform(
+                BSPToDoubleBuffer.transform(part)
+                )
 
         val ans = optimize(initPartition) 
 
@@ -114,6 +114,11 @@ class ERMTest extends AnyFunSuite {
                     i.run(List())
                     // println(i.toString)
                 })
+                // DoubleBufferToBSP and BSPToDoubleBuffer
+                // val summary = ans.members.map(_.state.asInstanceOf[(Array[BSP & ComputeMethod & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = BSPId}])]._1).flatMap(k => k.map(i => i.state.asInstanceOf[Person])).groupBy(i => i.health).map(i => (i._1, i._2.size))
+                // BSPToDoubleBuffer
+                // val summary = ans.members.map(_.state.asInstanceOf[Person]).groupBy(i => i.health).map(i => (i._1, i._2.size))
+                // println(f"Summary: ${summary}")
             })
         ) 
     }
