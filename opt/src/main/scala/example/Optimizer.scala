@@ -6,11 +6,9 @@ trait Optimizer[T <: Partition, V <: Partition] {
     def transform(part: T): V
 }
 
-object Optimizer {
-    // transform send to read
-    val bspToDoubleBuffer = new Optimizer[Partition{type Member=BSP & ComputeMethod; type NodeId = BSPId}, Partition{type Member=BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}] {
-        def transform(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId} = {
-            type Member = BSP & ComputeMethod & DoubleBuffer
+case object BSPToDoubleBuffer extends Optimizer[Partition{type Member=BSP & ComputeMethod; type NodeId = BSPId}, Partition{type Member=BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}] {
+    def transform(part: Partition{type Member=BSP & ComputeMethod; type NodeId = BSPId}): Partition{type Member=BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId} = {
+        type Member = BSP & ComputeMethod & DoubleBuffer
             val id = part.id
 
             // preprocess, populate the metavariable readFrom
@@ -71,12 +69,12 @@ object Optimizer {
 
                                 val receiveFrom: List[Int] = localIds.toList.map(i => indexedId(i))
                                 
-                                override def compile(): Message = {
+                                override def compile(): Option[Message] = {
                                     assert(receiveFrom.size > 0)
                                     
                                     selfBSP.partialCompute(receiveFrom.map(i => {
                                         members(i).publicState.asInstanceOf[bsp.Message]
-                                    })).get
+                                    }))
                                 }
                                 // println("Receive from contains values " + receiveFrom)                                    
                             })
@@ -94,14 +92,15 @@ object Optimizer {
 
                 val topo: Graph[NodeId] = part.topo
             }
-        }
     }
+}
+
+case object DoubleBufferToBSP extends Optimizer[Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}, Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}]{
 
     // hierarchical, each cell is still a BSP
     // rely on the getMemberMessage defined in the partition to access local values in the Array state. The partition can contain only one such a nested BSP
     // compile away staged expr in the resulting BSP (no longer DoubleBuffer)
-    val mergeBSP = new Optimizer[Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}, Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}] {
-        
+    
         def transform(part: Partition{type Member = BSP & ComputeMethod & DoubleBuffer; type NodeId = BSPId}): Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId} = {
             assert(part.members.size >= 1)
             
@@ -134,8 +133,13 @@ object Optimizer {
                                 type Message = selfBSP.Message
                                 val receiveFrom: List[Int] = b.stagedComputation.get.receiveFrom.map(r => bspIds.indexOf(r))
 
-                                override def compile(): Message = {
-                                    selfBSP.partialCompute(receiveFrom.map(i => members.head.state.asInstanceOf[(Array[BSP & ComputeMethod & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message])).get
+                                
+                                override def compile(): Option[Message] = {
+                                    // println("Receive from has value " + receiveFrom)
+                                    // println("The values obtained from receiveFrom are " + receiveFrom.map(i => members.head.state.asInstanceOf[(Array[BSP & ComputeMethod & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message]))
+
+                                    selfBSP.partialCompute(receiveFrom.map(i => members.head.state.asInstanceOf[(Array[BSP & ComputeMethod & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = NodeId}])]._1(i).publicState.asInstanceOf[Message]))
+                                    // println("The value of partially staged computation is " + x)
                                 }
                             })
                         }
@@ -214,5 +218,4 @@ object Optimizer {
                 val topo: Graph[NodeId] = part.topo
             }
         }
-    }
 }
