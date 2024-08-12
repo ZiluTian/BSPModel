@@ -1,9 +1,5 @@
 package BSPModel
 
-// sealed trait ComputeOptimization
-// case object StatelessAggregate extends ComputeOptimization
-// case object InplacePartialAggregate extends ComputeOptimization
-
 trait ComputeMethod {
     type State
     type Message
@@ -19,14 +15,10 @@ trait ComputeMethod {
     }
 }
 
-trait StatelessComputeMethod extends ComputeMethod {
-    // inline val opt: ComputeOptimization = StatelessAggregate
-}
+trait StatelessComputeMethod extends ComputeMethod 
 
 // foldLeft allows for maintaining a state when aggregating messages, hence "stateful"
 trait StatefulComputeMethod  extends ComputeMethod {
-    // inline val opt: ComputeOptimization = InplacePartialAggregate
-
     // change the value of initFoldValue inplace
     def statefulFold(ms: List[Message]): Unit
 

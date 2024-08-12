@@ -13,32 +13,6 @@ trait DoubleBuffer {
         publicState = stateToMessage(state)
     }
 
-    // // use inline matches to perform compile-time opt
-    // inline def genRun(): List[Message] => Unit = {
-    //     inline this.opt match {
-    //         case StatelessAggregate => {
-    //             (ms: List[Message]) => stagedComputation match {
-    //                 case None => state = run(state,  ms)
-    //                 case Some(x) => {
-    //                     val stagedRes = x.compile().get
-    //                     // println("staged expression evaluates to " + stagedRes)
-    //                     state = run(state, stagedRes.asInstanceOf[Message] :: ms)
-    //                 }
-    //             }
-    //         }
-    //         case InplacePartialAggregate => {
-    //             (ms: List[Message]) => stagedComputation match {
-    //                 case None => state = run(state,  ms)
-    //                 case Some(x) => {
-    //                     x.compile()
-    //                     // println("staged expression evaluates to " + stagedRes)
-    //                     state = run(state, ms)
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
     override def run(ms: List[Message]): Unit = {
         stagedComputation match {
             case None => state = run(state,  ms)
