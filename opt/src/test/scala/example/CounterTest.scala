@@ -14,18 +14,18 @@ class CounterTest extends AnyFunSuite {
         type State = Int
         type Message = Int
 
-        def partialCompute(m1: List[Int]): Option[Int] = {
-            m1 match {
-                case Nil => None
-                case m :: Nil => Some(m)
-                case m :: tail => Some(tail.fold(m)(_+_))
+        def partialCompute(m1: Iterable[Int]): Option[Int] = {
+            if (m1.isEmpty) {
+                None
+            } else {
+                Some(m1.sum)
             }
         }
 
         def updateState(s: Int, m: Option[Int]): Int = {
             m match {
                 case None => s
-                case Some(x) =>                 
+                case Some(x) =>
                     s + x
             }
         }
@@ -38,7 +38,7 @@ class CounterTest extends AnyFunSuite {
     class Cell(pos: BSPId, neighbors: Seq[BSPId]) extends BSP with CounterCompute {
         var state: Int = 1
         override val id = pos
-        val sendTo = FixedCommunication(neighbors) 
+        val receiveFrom = FixedCommunication(neighbors) 
     } 
 
     test("Counter should increse its value in every round") {
@@ -55,22 +55,24 @@ class CounterTest extends AnyFunSuite {
             type Value = BSP
             val id = 1
 
-            val topo = Graph(Map(), Map())
+            val topo = new BSPModel.Graph[BSPId]{
+                val vertices = agents.map(a => a.id).toSet
+                val edges = TestGraph.toGraph(g).map(i => (i._1, i._2.toList))
+                val inEdges = Map()
+                val outEdges = Map()
+            }
+
             val members = agents.toList
         }
 
-        def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}) = 
-            // DoubleBufferToBSP.transform(BSPToDoubleBuffer.transform(part))
-            BSPToDoubleBuffer.transform(part)
-
-        val ans = optimize(initPartition) 
+        val optBSP = BSPModel.Optimize.default(initPartition)
 
         benchmarkTool[Unit](
             Range(1, 5).foreach(_ => {
-                ans.members.map(i => {
+                optBSP.members.map(i => {
                     i.run(List())
-                    // println(i.toString)
                 })
+                // println(optBSP.members.map(m => m.state.asInstanceOf[(Array[BSP & ComputeMethod & Stage & DoubleBuffer], Option[PartitionMessage{type M = BSP; type Idx = BSPId}])]._1.map(j => j.state).mkString(", ")).mkString("\n"))
             })
         ) 
     }

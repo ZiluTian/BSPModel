@@ -11,6 +11,7 @@ object TestGraph{
     implicit def toGraph(g: TestGraph): Map[Long, Iterable[Long]] = g.g
 }
 
+// (vertex, receiveFrom)
 case class Torus2DGraph(width: Int, height: Int, startingIndex: Int = 0) extends TestGraph {
     val g: Map[Long, IndexedSeq[Long]] = {
         Range(0, width * height).map(index => {

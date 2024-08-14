@@ -1,9 +1,8 @@
 package BSPModel
 
 trait StagedExpr {
-    type NodeId
     type Message
 
-    val receiveFrom: List[NodeId]
+    // a closure that stores compile-time references
     def compile(): Option[Message]
 }
