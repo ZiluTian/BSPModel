@@ -24,10 +24,3 @@ lazy val opt = (project in file("opt"))
     name := "BSPModel",
     commonSettings
 ).dependsOn(core)
-
-// lazy val macros = (project in file("macros"))
-//   .settings(
-//     name := "BSPModel-macros",
-//     commonSettings
-//   ).dependsOn(core)
-// See https://www.scala-sbt.org/1.x/docs/Using-Sonatype.html for instructions on how to publish to Sonatype.
