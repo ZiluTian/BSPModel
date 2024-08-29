@@ -27,11 +27,11 @@ class ERMTest extends AnyFunSuite {
         type State = Person
         type Message = List[Double] // risk of being infected
 
-        def partialCompute(m1: List[List[Double]]): Option[List[Double]] = {
+        def partialCompute(m1: Iterable[List[Double]]): Option[List[Double]] = {
             // println(f"Messages received are ${m1}")
             m1 match {
                 case Nil => None
-                case _ => Some(m1.flatten)
+                case _ => Some(m1.toList.flatten)
             }
         }
 
@@ -83,12 +83,12 @@ class ERMTest extends AnyFunSuite {
                 vulnerability = if (age > 60) 1 else 0,
                 0)
         override val id = pos
-        val sendTo = FixedCommunication(neighbors) 
-    } 
+        val receiveFrom = FixedCommunication(neighbors) 
+    }
 
     test(f"${experimentName} example should run") {
-        val graph: Map[Long, Iterable[Long]] = (new ErdosRenyiGraph(population, connectivity)).g
-        val agents = graph.map(i => new PersonAgent(i._1, i._2.toSeq))
+        val g: Map[Long, Iterable[Long]] = (new ErdosRenyiGraph(population, connectivity)).g
+        val agents = g.map(i => new PersonAgent(i._1, i._2.toSeq))
 
         // binding information (partition structure)
         val initPartition = new Partition {
@@ -97,16 +97,17 @@ class ERMTest extends AnyFunSuite {
             type Value = BSP
             val id = 1
 
-            val topo = Graph(Map(), Map())
+            val topo = new BSPModel.Graph[BSPId]{
+                val vertices = agents.map(a => a.id).toSet
+                val edges = g.map(i => (i._1, i._2.toList))
+                val inEdges = Map()
+                val outEdges = Map()
+            }
+
             val members = agents.toList
         }
 
-        def optimize(part: Partition{type Member = BSP & ComputeMethod; type NodeId = BSPId}) = 
-            DoubleBufferToBSP.transform(
-                BSPToDoubleBuffer.transform(part)
-                )
-
-        val ans = optimize(initPartition) 
+        val ans = BSPModel.Optimize.default(initPartition)
 
         benchmarkTool[Unit](
             Range(1, totalRounds).foreach(_ => {
